@@ -66,6 +66,9 @@ public class PlayerCharacter : MonoBehaviour
 
     public bool HasArrived(Vector3 currPos, Vector3 targetPos)
     {
+        targetPos += offset;
+        
+        Debug.Log(currPos + ", " + targetPos); 
         return (Vector3.Distance(currPos, targetPos) < 0.000001f);
     }
 

@@ -42,6 +42,7 @@ public class MouseInputSystem : MonoBehaviour
         {
             newPlayerPosition = fullMap.WorldToCell(mousePos);
             hexSystem.testCharacter.SetStartPos(fullMap.WorldToCell(hexSystem.testCharacter.GetPosition()));
+
         }
 
         if (!hexSystem.HasSelectorArrived(tilePosition))

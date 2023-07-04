@@ -123,9 +123,8 @@ public class HexSystem : MonoBehaviour
             }
         }
 
-        testCharacter.SetStamina(7);
+        testCharacter.SetStamina(3);
         CreateMovementOverlay(testCharacter.GetStamina(), testCharacter.GetPosition());
-        shouldRedraw = false;
 
         /*
         foreach (TilemapRenderer renderer in hexMapRenderers)
@@ -169,8 +168,6 @@ public class HexSystem : MonoBehaviour
         targetPos += selectorOffset;
 
         selector.transform.position = Vector3.MoveTowards(selector.transform.position, targetPos, .1f);
-
-        // Debug.Log(selector.transform.position);
     }
 
     public bool HasSelectorArrived(Vector3 targetPos)
@@ -205,39 +202,40 @@ public class HexSystem : MonoBehaviour
         if (GetTileDistance(AxialHexToCube(movingCharacter.GetStartPos()), AxialHexToCube(targetPos)) <= movingCharacter.GetStamina()
             && IsWalkableTile(targetPos))
         {
+            ClearMovementOverlay();
+
             if (!movingCharacter.HasArrived(movingCharacter.GetPosition(), fullMap.CellToWorld(targetPos)))
             {
                 movingCharacter.Move(fullMap.CellToWorld(targetPos));
-                shouldRedraw = true; 
             }
-        }
 
-        if (movingCharacter.HasArrived(movingCharacter.GetCellPosition(fullMap), targetPos) && shouldRedraw)
+         }
+
+        Debug.Log(movingCharacter.HasArrived(movingCharacter.GetPosition(), fullMap.CellToWorld(targetPos)));
+
+        if (movingCharacter.HasArrived(movingCharacter.GetPosition(), fullMap.CellToWorld(targetPos)))
         {
-            //CreateMovementOverlay(movingCharacter.GetStamina(), targetPos);
-            //shouldRedraw = false;
+            CreateMovementOverlay(movingCharacter.GetStamina(), targetPos);
         }
     }
 
     // to use this method, you enter in the character's Stamina and their Position
     public void CreateMovementOverlay(int movementRange, Vector3 tilePos)
     {
-        ClearWalkableTiles();
+        int minY = Mathf.RoundToInt(tilePos.y) - movementRange;
+        int maxY = Mathf.RoundToInt(tilePos.y) + movementRange;
+        int minX = Mathf.RoundToInt(tilePos.x) - movementRange;
+        int maxX = Mathf.RoundToInt(tilePos.x) + movementRange;
 
         Vector3Int convertedTilePos = AxialHexToCube(tilePos);
         Vector3 testTile;
         Vector3Int axialTestTile;
 
-        int minY = convertedTilePos.y - movementRange;
-        int maxY = convertedTilePos.y + movementRange;
-        int minX = convertedTilePos.x - movementRange;
-        int maxX = convertedTilePos.x + movementRange;
-
         for (int i = minY; i <= maxY; i++)
         {
             for (int j = minX; j <= maxX; j++)
             {
-                testTile = new Vector3(i, j, 0);
+                testTile = new Vector3(j, i, 0);
                 axialTestTile = AxialHexToCube(testTile);
 
                 if (GetTileType(testTile) != "" && 
@@ -245,12 +243,13 @@ public class HexSystem : MonoBehaviour
                     GetTileDistance(convertedTilePos, axialTestTile) <= movementRange)
                 {
                     AddWalkableTile(testTile);
+                    
                 }
             }
         }
 
         DrawMovementOverlay();
-
+        shouldRedraw = false;
     }
 
     /* Tile Interaction methods
@@ -344,14 +343,13 @@ public class HexSystem : MonoBehaviour
         
     }
 
-    public bool TileInRange(Vector3 tilePos)
+    // need to create a proper "game entity class" and change this so it takes any kind of object's position
+    public bool TileInRange(PlayerCharacter gameObject, Vector3 targetPos, int range)
     {
-        Vector3Int convertedTilePos = new Vector3Int(Mathf.RoundToInt(tilePos.x), Mathf.RoundToInt(tilePos.y), Mathf.RoundToInt(tilePos.z));
-
-        return walkableTileCoords.Contains(convertedTilePos);
+        return (GetTileDistance(AxialHexToCube(gameObject.GetStartPos()), AxialHexToCube(targetPos)) <= range);
     }
 
-    public void ClearWalkableTiles()
+    public void ClearMovementOverlay()
     {
         tileOverlay.ClearAllTiles();
         walkableTileCoords.Clear();
