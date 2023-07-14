@@ -11,6 +11,7 @@ public class PlayerCharacter : MonoBehaviour
     private string tier3Class;
 
     private string[] perks;
+    private bool isAlly;
 
     // primary stats
     private int health;
@@ -37,6 +38,9 @@ public class PlayerCharacter : MonoBehaviour
     private string[] debuffs;
     private int range;
 
+    private int actionPoints;
+    private int movementPoints;
+
     // equipment
 
     // inventory
@@ -50,6 +54,7 @@ public class PlayerCharacter : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+
     }
 
     // Update is called once per frame
@@ -68,7 +73,7 @@ public class PlayerCharacter : MonoBehaviour
     {
         targetPos += offset;
         
-        Debug.Log(currPos + ", " + targetPos); 
+        // Debug.Log(currPos + ", " + targetPos); 
         return (Vector3.Distance(currPos, targetPos) < 0.000001f);
     }
 
@@ -85,6 +90,31 @@ public class PlayerCharacter : MonoBehaviour
     public int GetStamina()
     {
         return stamina;
+    }
+
+    public void ResetMovement()
+    {
+        movementPoints = stamina;
+    }
+
+    public void UseMovement(int cost)
+    {
+        movementPoints -= cost;
+    }
+
+    public int GetMovement()
+    {
+        return movementPoints;
+    }
+
+    public void setAllegiance(bool isAlly)
+    {
+        this.isAlly = isAlly;
+    }
+
+    public bool isEnemy()
+    {
+        return !isAlly;
     }
 
     public void SetStartPos(Vector3Int startPos)

@@ -41,7 +41,7 @@ public class MouseInputSystem : MonoBehaviour
         if (Input.GetMouseButtonUp(0))
         {
             newPlayerPosition = fullMap.WorldToCell(mousePos);
-            hexSystem.testCharacter.SetStartPos(fullMap.WorldToCell(hexSystem.testCharacter.GetPosition()));
+            hexSystem.GetActiveCharacter().SetStartPos(fullMap.WorldToCell(hexSystem.GetActiveCharacter().GetPosition()));
 
         }
 
@@ -50,9 +50,9 @@ public class MouseInputSystem : MonoBehaviour
             hexSystem.SetSelector(fullMap.CellToWorld(tilePosition));
         }
 
-        hexSystem.MoveCharacter(hexSystem.testCharacter, newPlayerPosition);
+        hexSystem.MoveCharacter(hexSystem.GetActiveCharacter(), newPlayerPosition);
 
-
+        Debug.Log(hexSystem.OnMap(tilePosition));
         // Debug.Log(hexSystem.GetSelectorPosition());
     }
 
