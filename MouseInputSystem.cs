@@ -52,7 +52,7 @@ public class MouseInputSystem : MonoBehaviour
 
         hexSystem.MoveCharacter(hexSystem.GetActiveCharacter(), newPlayerPosition);
 
-        Debug.Log(hexSystem.OnMap(tilePosition));
+        // Debug.Log(hexSystem.OnMap(tilePosition));
         // Debug.Log(hexSystem.GetSelectorPosition());
     }
 
