@@ -130,11 +130,13 @@ public class HexSystem : MonoBehaviour
         knightCharacter.SetStamina(3);
         CreateMovementOverlay(knightCharacter.GetStamina(), knightCharacter.GetPosition());
 
-        // BFS(new Vector3(0, 0, 0), 3);
+        Vector3 pointA = new Vector3(0, 0, 0);
+        Vector3 pointB = new Vector3(2, 1, 0);
+
+        BuildPath(pointA, pointB, 6);
+
         /************************************************
-         * 
-         * 
-         * 
+               
         foreach (KeyValuePair<Vector3Int, Tile> kvp in hexArray)
         {
             // Debug.Log(string.Format("Key = {0}, Value = {1}", kvp.Key, kvp.Value));
@@ -220,8 +222,7 @@ public class HexSystem : MonoBehaviour
     public void MoveCharacter(PlayerCharacter movingCharacter, Vector3Int targetPos)
     {
         // Debug.Log(movingCharacter.GetStartPos() + ", " + targetPos + ", " + GetTileDistance(movingCharacter.GetStartPos(), targetPos));
-
-        if (GetTileDistance(AxialHexToCube(movingCharacter.GetStartPos()), AxialHexToCube(targetPos)) <= movingCharacter.GetStamina()
+        if (GetTileDistance(movingCharacter.GetStartPos(), targetPos) <= movingCharacter.GetStamina()
             && IsWalkableTile(targetPos, movingCharacter))
         {
             ClearMovementOverlay();
@@ -241,7 +242,13 @@ public class HexSystem : MonoBehaviour
         }
     }
 
-
+    public void PathCharacter(PlayerCharacter movingCharacter, Stack<Vector3> path)
+    {
+        while (path.Count > 0)
+        {
+            //MoveCharacter(movingCharacter, path.Pop());
+        }
+    }
 
     /* Tile Interaction methods
      * 
@@ -279,9 +286,12 @@ public class HexSystem : MonoBehaviour
         return tileType;
     }
 
-    public int GetTileDistance(Vector3Int hex1, Vector3Int hex2)
+    public int GetTileDistance(Vector3 hex1, Vector3 hex2)
     {
-        return (Mathf.Abs(hex1.x - hex2.x) + Mathf.Abs(hex1.y - hex2.y) + Mathf.Abs(hex1.z - hex2.z)) / 2;
+        Vector3Int hex1Conv = AxialHexToCube(hex1);
+        Vector3Int hex2Conv = AxialHexToCube(hex2);
+
+        return (Mathf.Abs(hex1Conv.x - hex2Conv.x) + Mathf.Abs(hex1Conv.y - hex2Conv.y) + Mathf.Abs(hex1Conv.z - hex2Conv.z)) / 2;
     }
 
     public Vector3Int AxialHexToCube(Vector3 tilePos)
@@ -326,6 +336,8 @@ public class HexSystem : MonoBehaviour
         // this way, if someone's on a water tile, the cost for the tile is 10000
         // with a swim perk, the water tile goes down to 100
         // the character would need an extra perk to slip by
+
+        // this needs to be made so allies can be moved through
         if (IsAnyoneOnTile(convertedTilePos))
         {
             travelCost *= 100;
@@ -371,7 +383,7 @@ public class HexSystem : MonoBehaviour
     // need to create a proper "game entity class" and change this so it takes any kind of object's position
     public bool TileInRange(PlayerCharacter gameObject, Vector3 targetPos, int range)
     {
-        return (GetTileDistance(AxialHexToCube(gameObject.GetStartPos()), AxialHexToCube(targetPos)) <= range);
+        return (GetTileDistance(gameObject.GetStartPos(), targetPos) <= range);
     }
 
     public bool OnMap(Vector3 position)
@@ -409,7 +421,6 @@ public class HexSystem : MonoBehaviour
                     frontier.Enqueue(next);
                     visited.Add(next);
                     costSoFar.Add(next, costSoFar[current] + TravelCost(next));
-
                 }
             }
 
@@ -470,10 +481,12 @@ public class HexSystem : MonoBehaviour
      * 
      * The following code deals with pathfinding on the game map.
      * 
+     * NeighbourTiles(Vector3) - returns all the neighbouring tiles of a Vector3 location
+     * AStarTraversal(Vector3, Vector3, int) finds a path from a start Vector3 to an end Vector.
+     * 
      */
 
     // Directions for the A* to branch out
-
     public static readonly Vector3[] EVEN_DIRS = new[] {
          new Vector3(1, 0, 0), // to right of tile
          new Vector3(0, -1, 0), // to left of tile
@@ -513,14 +526,13 @@ public class HexSystem : MonoBehaviour
         }
     }
 
-    private Dictionary<Vector3, Vector3> cameFrom = new Dictionary<Vector3, Vector3>();
-    private Dictionary<Vector3, int> costSoFar = new Dictionary<Vector3, int>();
-
-
-    public List<Vector3> AStarTraversal(Vector3 start, Vector3 destination, int activeCharStam)
+    public Dictionary<Vector3, Vector3> AStarTraversal(Vector3 start, Vector3 destination, int activeCharStam)
     {
         var frontier = new PriorityQueue<Vector3, int>();
         frontier.Enqueue(start, 0);
+
+        Dictionary<Vector3, Vector3> cameFrom = new Dictionary<Vector3, Vector3>();
+        Dictionary<Vector3, int> costSoFar = new Dictionary<Vector3, int>();
 
         cameFrom[start] = start;
         costSoFar[start] = 0;
@@ -534,10 +546,62 @@ public class HexSystem : MonoBehaviour
                 break;
             }
 
+            if (!OnMap(destination))
+            {
+                break;
+            }
+
+            foreach (var next in NeighbourTiles(current))
+            {
+                int newCost = costSoFar[current] + TravelCost(next);
+
+                if (!costSoFar.ContainsKey(next) || newCost < costSoFar[next])
+                {
+                    costSoFar[next] = newCost;
+                    int priority = newCost + GetTileDistance(next, destination);
+                    frontier.Enqueue(next, priority);
+                    cameFrom[next] = current;
+                }
+            }
         }
 
-        return null;
+        return cameFrom;
     }
 
+    public Stack<Vector3> BuildPath(Vector3 start, Vector3 end, int movementPoints)
+    {
+        Vector3 node;
+        Dictionary<Vector3, Vector3> hexPath = AStarTraversal(start, end, movementPoints);
+
+        Stack<Vector3> path = new Stack<Vector3>();
+        path.Push(end);
+
+        foreach (KeyValuePair<Vector3, Vector3> entry in hexPath)
+        {
+            Debug.Log("Key: " + entry.Key);
+            Debug.Log("Entry: " + entry.Value);
+        }
+
+        while (hexPath[end] != start)
+        {
+            if (hexPath.TryGetValue(end, out node))
+            {
+                path.Push(node);
+                end = node;
+            }
+            else
+            {
+                Debug.Log("No Path");
+                break;
+            }
+        }
+
+        while (path.Count > 0)
+        {
+            Debug.Log(path.Pop());
+        }
+
+        return path;
+    }
 }
 
