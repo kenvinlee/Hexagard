@@ -20,7 +20,7 @@ public enum HexType
     */
 
     Water = 100,
-    RaisedLand = 2,
+    RaisedLand = 1,
     Land = 1,
     Mountains = 200,
     Trees = 2,

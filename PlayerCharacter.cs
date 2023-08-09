@@ -48,6 +48,7 @@ public class PlayerCharacter : MonoBehaviour
     // spells
 
     // render stuff
+    private Transform characterModel;
     private Vector3 offset = new Vector3(0, 0.2f, 0);
     private Vector3Int moveStartPos;
 
@@ -69,11 +70,12 @@ public class PlayerCharacter : MonoBehaviour
         transform.position = Vector3.MoveTowards(transform.position, targetPos, .03f);
     }
 
+    // This is comparing World locations, not Cell locations
+    // A character can be in the same Cell but in different world locations, so comparing world locations is more accurate
     public bool HasArrived(Vector3 currPos, Vector3 targetPos)
     {
         targetPos += offset;
         
-        // Debug.Log(currPos + ", " + targetPos); 
         return (Vector3.Distance(currPos, targetPos) < 0.000001f);
     }
 

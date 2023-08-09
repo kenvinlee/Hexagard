@@ -1,19 +1,26 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
+using static Util;
 
 public class MouseInputSystem : MonoBehaviour
 {
     private Vector3 mousePos;
     private Vector3Int tilePosition;
-    private Vector3Int newPlayerPosition;
+    private Vector3Int pathingPlayerPosition;
+    private Vector3Int finalPlayerPosition;
+
+    private int moveCost;
+    [SerializeField] private Stack<Tuple<Vector3, int>> movementPath;
 
     private Grid fullMap;
     private Camera cam;
 
     private HexSystem hexSystem;
     private TileUISystem tileUISystem;
+    private PlayerCharacter activeCharacter;
 
     // Start is called before the first frame update
     void Start()
@@ -22,8 +29,9 @@ public class MouseInputSystem : MonoBehaviour
         tileUISystem = GameObject.Find("Canvas").GetComponentInChildren<TileUISystem>();
         hexSystem = transform.GetComponent<HexSystem>();
 
-
+        activeCharacter = hexSystem.GetActiveCharacter();
         fullMap = transform.GetComponent<Grid>();
+        pathingPlayerPosition = activeCharacter.GetCellPosition(fullMap);
 
         mousePos = Input.mousePosition;
         
@@ -40,20 +48,41 @@ public class MouseInputSystem : MonoBehaviour
 
         if (Input.GetMouseButtonUp(0))
         {
-            newPlayerPosition = fullMap.WorldToCell(mousePos);
-            hexSystem.GetActiveCharacter().SetStartPos(fullMap.WorldToCell(hexSystem.GetActiveCharacter().GetPosition()));
-
+            finalPlayerPosition = fullMap.WorldToCell(mousePos);
+            activeCharacter.SetStartPos(fullMap.WorldToCell(activeCharacter.GetPosition()));
+            movementPath = hexSystem.BuildPath(activeCharacter.GetStartPos(), finalPlayerPosition, activeCharacter.GetMovement());
+            hexSystem.ClearMovementOverlay();
+            
         }
+
+        // creates the path that the character moves along
+        // adjust's character's movement it moves along
+        if (movementPath != null && movementPath.Count >= 1)
+        {
+            pathingPlayerPosition = V3IntConv(movementPath.Peek().Item1);
+
+            if (activeCharacter.HasArrived(activeCharacter.GetPosition(), fullMap.CellToWorld(pathingPlayerPosition)))
+            {
+                //Debug.Log(movementPath.Peek().Item2);
+                activeCharacter.UseMovement(hexSystem.TravelCost(movementPath.Pop().Item1));
+
+                //Debug.Log(movementPath.Count);
+
+                if (movementPath.Count == 0) {
+                    Debug.Log(activeCharacter.GetMovement());
+                    Debug.Log(activeCharacter.GetCellPosition(fullMap));
+                    hexSystem.CreateMovementOverlay(activeCharacter.GetMovement(), activeCharacter.GetCellPosition(fullMap));                    
+                }
+            }
+        }
+
+        hexSystem.MoveCharacter(activeCharacter, pathingPlayerPosition);
 
         if (!hexSystem.HasSelectorArrived(tilePosition))
         {
             hexSystem.SetSelector(fullMap.CellToWorld(tilePosition));
         }
 
-        hexSystem.MoveCharacter(hexSystem.GetActiveCharacter(), newPlayerPosition);
-
-        // Debug.Log(hexSystem.OnMap(tilePosition));
-        // Debug.Log(hexSystem.GetSelectorPosition());
     }
 
     Tile GetClickedTile()

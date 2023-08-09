@@ -1,8 +1,11 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 using Utils;
+using static Util;
+
 
 public class HexSystem : MonoBehaviour
 {
@@ -29,7 +32,7 @@ public class HexSystem : MonoBehaviour
 
     private int mapXCoord, mapYCoord;
     [SerializeField] private int mapSizeX, mapSizeY;
-    private List<Vector3Int> walkableTileCoords;
+    [SerializeField] private List<Vector3Int> walkableTileCoords;
     private Tile walkingOverlayTile;
 
     // possibly useless
@@ -127,13 +130,15 @@ public class HexSystem : MonoBehaviour
             }
         }
 
-        knightCharacter.SetStamina(3);
-        CreateMovementOverlay(knightCharacter.GetStamina(), knightCharacter.GetPosition());
+        knightCharacter.SetStamina(9);
+        knightCharacter.ResetMovement();
+
+        CreateMovementOverlay(activeCharacter.GetStamina(), activeCharacter.GetCellPosition(fullMap));
 
         Vector3 pointA = new Vector3(0, 0, 0);
-        Vector3 pointB = new Vector3(2, 1, 0);
+        Vector3 pointB = new Vector3(10, 4, 0);
 
-        BuildPath(pointA, pointB, 6);
+        //BuildPath(pointA, pointB, knightCharacter.GetMovement());
 
         /************************************************
                
@@ -186,7 +191,7 @@ public class HexSystem : MonoBehaviour
         // Vector3 startPos = selector.transform.position;
         targetPos += selectorOffset;
 
-        selector.transform.position = Vector3.MoveTowards(selector.transform.position, targetPos, .1f);
+        selector.transform.position = Vector3.MoveTowards(selector.transform.position, targetPos, .5f);
     }
 
     public bool HasSelectorArrived(Vector3 targetPos)
@@ -225,8 +230,6 @@ public class HexSystem : MonoBehaviour
         if (GetTileDistance(movingCharacter.GetStartPos(), targetPos) <= movingCharacter.GetStamina()
             && IsWalkableTile(targetPos, movingCharacter))
         {
-            ClearMovementOverlay();
-
             if (!movingCharacter.HasArrived(movingCharacter.GetPosition(), fullMap.CellToWorld(targetPos)))
             {
                 movingCharacter.Move(fullMap.CellToWorld(targetPos));
@@ -234,12 +237,6 @@ public class HexSystem : MonoBehaviour
 
         }
 
-        // Debug.Log(movingCharacter.HasArrived(movingCharacter.GetPosition(), fullMap.CellToWorld(targetPos)));
-
-        if (movingCharacter.HasArrived(movingCharacter.GetPosition(), fullMap.CellToWorld(targetPos)))
-        {
-            CreateMovementOverlay(movingCharacter.GetStamina(), targetPos);
-        }
     }
 
     public void PathCharacter(PlayerCharacter movingCharacter, Stack<Vector3> path)
@@ -268,7 +265,7 @@ public class HexSystem : MonoBehaviour
 
         // converts Vector3s into Vector3Int since GetTile only takes Vector3Int
         // we allow Vector3 input and sanitize here for easier use
-        Vector3Int convertedTilePos = new Vector3Int(Mathf.RoundToInt(tilePos.x), Mathf.RoundToInt(tilePos.y), Mathf.RoundToInt(tilePos.z));
+        Vector3Int convertedTilePos = V3IntConv(tilePos);
 
         foreach (Tilemap tilemap in hexMaps)
         {
@@ -352,7 +349,7 @@ public class HexSystem : MonoBehaviour
         Vector3Int convertedTilePos = new Vector3Int(Mathf.RoundToInt(tilePos.x), Mathf.RoundToInt(tilePos.y), Mathf.RoundToInt(tilePos.z));
         bool isWalkable = true;
 
-        if (!BFS(character.GetStartPos(), character.GetStamina()).Contains(convertedTilePos))
+        if (!BFSMovementRange(character.GetStartPos(), character.GetStamina()).ContainsKey(convertedTilePos))
         {
             isWalkable = false;
         }
@@ -393,42 +390,49 @@ public class HexSystem : MonoBehaviour
 
     /* Movement Overlay creation
      * 
+     * BFSMovementRange(Vector3, int)
      * DrawMovementOverlay()
-     * AddWalkableTile(Vector3 pos)
+     * AddWalkableTile(Vector3)
      * ClearMovementOverlay()
-     * CreateMovementOverlay(int stamina, Vector3 centerPos)
+     * CreateMovementOverlay(int, Vector3)
      * 
      */
 
-    public List<Vector3> BFS(Vector3 start, int depth)
+    // to use this method, you enter in the entity's Position and their movement ability
+    public Dictionary<Vector3, Tuple<Vector3, int>> BFSMovementRange(Vector3 start, int range)
     {
         Queue frontier = new Queue();
         frontier.Enqueue(start);
 
-        List<Vector3> visited = new List<Vector3>();
-        Dictionary<Vector3, int> costSoFar = new Dictionary<Vector3, int>();
-        
-        visited.Add(start);
-        costSoFar.Add(start, 0);
+        int costToNext;
+        Dictionary<Vector3, Tuple<Vector3, int>> costSoFar = new Dictionary<Vector3, Tuple<Vector3, int>>();
+        costSoFar.Add(start, Tuple.Create(start, 0));
      
         while (frontier.Count != 0) {
             Vector3 current = (Vector3)frontier.Dequeue();
             
             foreach (var next in NeighbourTiles(current))
             {
-                if (!visited.Contains(next) && ((TravelCost(next) + costSoFar[current]) <= depth) && OnMap(next))
+                if ((GetTileType(current) == "Land" && GetTileType(next) == "RaisedLand"))
+                {
+                    costToNext = 2;
+                }
+                else
+                {
+                    costToNext = TravelCost(next);
+                }
+
+                if (!costSoFar.ContainsKey(next) && ((costToNext + costSoFar[current].Item2) <= range) && OnMap(next))
                 { 
                     frontier.Enqueue(next);
-                    visited.Add(next);
-                    costSoFar.Add(next, costSoFar[current] + TravelCost(next));
+                    costSoFar.Add(next, Tuple.Create(current, costSoFar[current].Item2 + costToNext));
                 }
             }
 
         }
 
-        return visited;
+        return costSoFar;
     }
-    // to use this method, you enter in the character's Stamina and their Position
 
     public void CreateMovementOverlay(int movementRange, Vector3 tilePos)
     {
@@ -441,9 +445,10 @@ public class HexSystem : MonoBehaviour
         Vector3 testTile;
         Vector3Int axialTestTile;
 
-        foreach (Vector3 pos in BFS(tilePos, movementRange))
+        Debug.Log("Start BFS");
+        foreach (Vector3 pos in BFSMovementRange(tilePos, movementRange).Keys)
         {
-            AddWalkableTile(pos);
+             AddWalkableTile(pos);
         }
 
 
@@ -467,7 +472,6 @@ public class HexSystem : MonoBehaviour
     public void AddWalkableTile(Vector3 tilePos)
     {
         walkableTileCoords.Add(new Vector3Int(Mathf.RoundToInt(tilePos.x), Mathf.RoundToInt(tilePos.y), Mathf.RoundToInt(tilePos.z)));
-
     }
 
     public void ClearMovementOverlay()
@@ -477,7 +481,7 @@ public class HexSystem : MonoBehaviour
     }
 
 
-    /* A* Search 
+    /* Pathfinding 
      * 
      * The following code deals with pathfinding on the game map.
      * 
@@ -526,7 +530,7 @@ public class HexSystem : MonoBehaviour
         }
     }
 
-    public Dictionary<Vector3, Vector3> AStarTraversal(Vector3 start, Vector3 destination, int activeCharStam)
+    public Dictionary<Vector3, Vector3> AStarTraversal(Vector3 start, Vector3 destination)
     {
         var frontier = new PriorityQueue<Vector3, int>();
         frontier.Enqueue(start, 0);
@@ -568,26 +572,24 @@ public class HexSystem : MonoBehaviour
         return cameFrom;
     }
 
-    public Stack<Vector3> BuildPath(Vector3 start, Vector3 end, int movementPoints)
+    public Stack<Tuple<Vector3, int>> BuildPath(Vector3 start, Vector3 end, int characterMovement)
     {
-        Vector3 node;
-        Dictionary<Vector3, Vector3> hexPath = AStarTraversal(start, end, movementPoints);
+        Tuple<Vector3, int> node;
+        Dictionary<Vector3, Tuple<Vector3, int>> hexPath = BFSMovementRange(start, characterMovement);
 
-        Stack<Vector3> path = new Stack<Vector3>();
-        path.Push(end);
+        Stack<Tuple<Vector3, int>> path = new Stack<Tuple<Vector3, int>>();
 
-        foreach (KeyValuePair<Vector3, Vector3> entry in hexPath)
+        if (hexPath.ContainsKey(end))
         {
-            Debug.Log("Key: " + entry.Key);
-            Debug.Log("Entry: " + entry.Value);
+            path.Push(Tuple.Create(end, (hexPath[end].Item2 + TravelCost(end))));
         }
 
-        while (hexPath[end] != start)
+        while (hexPath[end].Item1 != start)
         {
             if (hexPath.TryGetValue(end, out node))
             {
                 path.Push(node);
-                end = node;
+                end = node.Item1;
             }
             else
             {
@@ -595,12 +597,7 @@ public class HexSystem : MonoBehaviour
                 break;
             }
         }
-
-        while (path.Count > 0)
-        {
-            Debug.Log(path.Pop());
-        }
-
+               
         return path;
     }
 }
