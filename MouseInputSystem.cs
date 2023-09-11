@@ -50,9 +50,7 @@ public class MouseInputSystem : MonoBehaviour
         {
             finalPlayerPosition = fullMap.WorldToCell(mousePos);
             activeCharacter.SetStartPos(fullMap.WorldToCell(activeCharacter.GetPosition()));
-            movementPath = hexSystem.BuildPath(activeCharacter.GetStartPos(), finalPlayerPosition, activeCharacter.GetMovement());
-            hexSystem.ClearMovementOverlay();
-            
+            movementPath = hexSystem.BuildPath(activeCharacter.GetStartPos(), finalPlayerPosition, activeCharacter.GetMovement());            
         }
 
         // creates the path that the character moves along
@@ -64,13 +62,14 @@ public class MouseInputSystem : MonoBehaviour
             if (activeCharacter.HasArrived(activeCharacter.GetPosition(), fullMap.CellToWorld(pathingPlayerPosition)))
             {
                 //Debug.Log(movementPath.Peek().Item2);
-                activeCharacter.UseMovement(hexSystem.TravelCost(movementPath.Pop().Item1));
+                activeCharacter.UseMovement(hexSystem.TileTraverseCost(movementPath.Pop().Item1));
 
                 //Debug.Log(movementPath.Count);
 
                 if (movementPath.Count == 0) {
                     Debug.Log(activeCharacter.GetMovement());
                     Debug.Log(activeCharacter.GetCellPosition(fullMap));
+                    hexSystem.ClearMovementOverlay();
                     hexSystem.CreateMovementOverlay(activeCharacter.GetMovement(), activeCharacter.GetCellPosition(fullMap));                    
                 }
             }
