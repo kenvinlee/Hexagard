@@ -1,34 +1,41 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
+using Utils;
+using static Util;
+
 
 public class HexSystem : MonoBehaviour
 {
 
     // selector
-    public GameObject selector;
+    private GameObject selector;
     private Vector3 selectorOffset = new Vector3(0, -0.13f, 0);
 
     // character
-    public PlayerCharacter testCharacter;
-    public PlayerCharacter activeCharacter;
+    private PlayerCharacter knightCharacter;
+    private PlayerCharacter mageCharacter;
+    private PlayerCharacter enemyCharacter;
+
+    private PlayerCharacter activeCharacter;
+
+    private List<PlayerCharacter> mapCharacters;
 
     // Grids and Tilemaps
     private Grid fullMap;
-    private Tilemap tileOverlay; 
+    private Tilemap tileOverlay;
     private Tilemap[] hexMaps;
     private TilemapRenderer[] hexMapRenderers;
     private HexType[] hexTypes;
 
     private int mapXCoord, mapYCoord;
-    private int mapSizeX, mapSizeY;
+    [SerializeField] private int mapSizeX, mapSizeY;
     [SerializeField] private List<Vector3Int> walkableTileCoords;
-
-    [SerializeField] private Tile walkingOverlayTile;
+    private Tile walkingOverlayTile;
 
     // possibly useless
-    private Hex[,] hexes;
     private Dictionary<Vector3Int, Tile> hexArray;
     private bool shouldRedraw;
 
@@ -50,7 +57,15 @@ public class HexSystem : MonoBehaviour
         selector = GameObject.Find("TileSelector");
 
         // find and initialize character
-        testCharacter = GameObject.Find("Player").GetComponent<PlayerCharacter>();
+        knightCharacter = GameObject.Find("Knight").GetComponent<PlayerCharacter>();
+        mageCharacter = GameObject.Find("Mage").GetComponent<PlayerCharacter>();
+        enemyCharacter = GameObject.Find("Enemy").GetComponent<PlayerCharacter>();
+        activeCharacter = knightCharacter;
+
+        mapCharacters = new List<PlayerCharacter>();
+        mapCharacters.Add(knightCharacter);
+        mapCharacters.Add(mageCharacter);
+        mapCharacters.Add(enemyCharacter);
 
         // initialize all Tilemaps within the level
         fullMap = transform.GetComponent<Grid>();
@@ -98,17 +113,9 @@ public class HexSystem : MonoBehaviour
 
         }
 
-        hexes = new Hex[mapSizeX, mapSizeY];
         hexTypes = new HexType[hexMaps.Length];
 
         // Create hex array based on above
-        for (int i = 0; i < hexTypes.Length; i++)
-        {
-            hexTypes[i] = new HexType();
-            hexTypes[i].HexTypeName = hexMaps[i].name;
-
-        }
-
         foreach (Tilemap tilemap in hexMaps)
         {
             foreach (var position in tilemap.cellBounds.allPositionsWithin)
@@ -123,11 +130,24 @@ public class HexSystem : MonoBehaviour
             }
         }
 
-        testCharacter.SetStamina(7);
-        CreateMovementOverlay(testCharacter.GetStamina(), testCharacter.GetPosition());
-        shouldRedraw = false;
+        knightCharacter.SetStamina(9);
+        knightCharacter.ResetMovement();
 
-        /*
+        CreateMovementOverlay(activeCharacter.GetStamina(), activeCharacter.GetCellPosition(fullMap));
+
+        Vector3 pointA = new Vector3(0, 0, 0);
+        Vector3 pointB = new Vector3(10, 4, 0);
+
+        //BuildPath(pointA, pointB, knightCharacter.GetMovement());
+
+        /************************************************
+               
+        foreach (KeyValuePair<Vector3Int, Tile> kvp in hexArray)
+        {
+            // Debug.Log(string.Format("Key = {0}, Value = {1}", kvp.Key, kvp.Value));
+        }
+
+
         foreach (TilemapRenderer renderer in hexMapRenderers)
         {
             Debug.Log(renderer.gameObject + ", " + renderer.sortingOrder);
@@ -147,7 +167,10 @@ public class HexSystem : MonoBehaviour
             {
                 // hexes[i, j] = new Hex(i, j);
             }
-        }*/
+        }
+        ***************************************************/
+
+
     }
 
     // Update is called once per frame
@@ -168,9 +191,7 @@ public class HexSystem : MonoBehaviour
         // Vector3 startPos = selector.transform.position;
         targetPos += selectorOffset;
 
-        selector.transform.position = Vector3.MoveTowards(selector.transform.position, targetPos, .1f);
-
-        // Debug.Log(selector.transform.position);
+        selector.transform.position = Vector3.MoveTowards(selector.transform.position, targetPos, .5f);
     }
 
     public bool HasSelectorArrived(Vector3 targetPos)
@@ -181,82 +202,60 @@ public class HexSystem : MonoBehaviour
     }
 
     public Vector3 GetSelectorPosition()
-    {       
+    {
         return selector.transform.position;
     }
 
 
-    /* Player Character methods
+    /* Player Character interaction methods
      *
      *
      *
      *
      */
-    
+
     public void SetActiveCharacter(PlayerCharacter nextActiveCharacter)
     {
         activeCharacter = nextActiveCharacter;
     }
 
+    public PlayerCharacter GetActiveCharacter()
+    {
+        return activeCharacter;
+    }
+
     public void MoveCharacter(PlayerCharacter movingCharacter, Vector3Int targetPos)
     {
         // Debug.Log(movingCharacter.GetStartPos() + ", " + targetPos + ", " + GetTileDistance(movingCharacter.GetStartPos(), targetPos));
-
-        if (GetTileDistance(AxialHexToCube(movingCharacter.GetStartPos()), AxialHexToCube(targetPos)) <= movingCharacter.GetStamina()
-            && IsWalkableTile(targetPos))
+        if (GetTileDistance(movingCharacter.GetStartPos(), targetPos) <= movingCharacter.GetStamina()
+            && IsWalkableTile(targetPos, movingCharacter))
         {
             if (!movingCharacter.HasArrived(movingCharacter.GetPosition(), fullMap.CellToWorld(targetPos)))
             {
                 movingCharacter.Move(fullMap.CellToWorld(targetPos));
-                shouldRedraw = true; 
             }
+
         }
 
-        if (movingCharacter.HasArrived(movingCharacter.GetCellPosition(fullMap), targetPos) && shouldRedraw)
-        {
-            //CreateMovementOverlay(movingCharacter.GetStamina(), targetPos);
-            //shouldRedraw = false;
-        }
     }
 
-    // to use this method, you enter in the character's Stamina and their Position
-    public void CreateMovementOverlay(int movementRange, Vector3 tilePos)
+    public void PathCharacter(PlayerCharacter movingCharacter, Stack<Vector3> path)
     {
-        ClearWalkableTiles();
-
-        Vector3Int convertedTilePos = AxialHexToCube(tilePos);
-        Vector3 testTile;
-        Vector3Int axialTestTile;
-
-        int minY = convertedTilePos.y - movementRange;
-        int maxY = convertedTilePos.y + movementRange;
-        int minX = convertedTilePos.x - movementRange;
-        int maxX = convertedTilePos.x + movementRange;
-
-        for (int i = minY; i <= maxY; i++)
+        while (path.Count > 0)
         {
-            for (int j = minX; j <= maxX; j++)
-            {
-                testTile = new Vector3(i, j, 0);
-                axialTestTile = AxialHexToCube(testTile);
-
-                if (GetTileType(testTile) != "" && 
-                    IsWalkableTile(testTile) && 
-                    GetTileDistance(convertedTilePos, axialTestTile) <= movementRange)
-                {
-                    AddWalkableTile(testTile);
-                }
-            }
+            //MoveCharacter(movingCharacter, path.Pop());
         }
-
-        DrawMovementOverlay();
-
     }
 
     /* Tile Interaction methods
      * 
-     * 
-     * 
+     * GetTileType(Vector3 pos) => String
+     * GetTileDistance(Vector3Int pos1, Vector3Int pos2) => int
+     * AxialHexToCube(Vector3 pos) => Vector3Int
+     * TravelCost(Vector 3 pos)
+     * IsWalkableTile(Vector3 pos)
+     * IsAnyoneOnTile(Vector3 pos)
+     * OnMap(Vector3 pos)
      * 
      */
     public string GetTileType(Vector3 tilePos)
@@ -266,7 +265,7 @@ public class HexSystem : MonoBehaviour
 
         // converts Vector3s into Vector3Int since GetTile only takes Vector3Int
         // we allow Vector3 input and sanitize here for easier use
-        Vector3Int convertedTilePos = new Vector3Int(Mathf.RoundToInt(tilePos.x), Mathf.RoundToInt(tilePos.y), Mathf.RoundToInt(tilePos.z));
+        Vector3Int convertedTilePos = V3IntConv(tilePos);
 
         foreach (Tilemap tilemap in hexMaps)
         {
@@ -277,33 +276,39 @@ public class HexSystem : MonoBehaviour
                     tileOrder = tilemap.GetComponentInParent<TilemapRenderer>().sortingOrder;
                     tileType = tilemap.name;
                 }
-                
+
             }
         }
-        
+
         return tileType;
     }
 
-    public int GetTileDistance(Vector3Int hex1, Vector3Int hex2)
+    public int GetTileDistance(Vector3 hex1, Vector3 hex2)
     {
-        return (Mathf.Abs(hex1.x - hex2.x) + Mathf.Abs(hex1.y - hex2.y) + Mathf.Abs(hex1.z - hex2.z)) / 2;
+        Vector3Int hex1Conv = AxialHexToCube(hex1);
+        Vector3Int hex2Conv = AxialHexToCube(hex2);
+
+        return (Mathf.Abs(hex1Conv.x - hex2Conv.x) + Mathf.Abs(hex1Conv.y - hex2Conv.y) + Mathf.Abs(hex1Conv.z - hex2Conv.z)) / 2;
     }
 
     public Vector3Int AxialHexToCube(Vector3 tilePos)
     {
         Vector3Int convertedTilePos = new Vector3Int(Mathf.RoundToInt(tilePos.x), Mathf.RoundToInt(tilePos.y), Mathf.RoundToInt(tilePos.z));
 
-        int q = convertedTilePos.x - (convertedTilePos.y - (convertedTilePos.y & 1)) / 2; 
+        int q = convertedTilePos.x - (convertedTilePos.y - (convertedTilePos.y & 1)) / 2;
         int r = convertedTilePos.y;
         int s = -q - r;
         return (new Vector3Int(q, r, s));
     }
 
-    public bool IsWalkableTile(Vector3 tilePos)
+    public int TravelCost(Vector3 tilePos)
     {
         Vector3Int convertedTilePos = new Vector3Int(Mathf.RoundToInt(tilePos.x), Mathf.RoundToInt(tilePos.y), Mathf.RoundToInt(tilePos.z));
-        bool isWalkable = true;
 
+        // default value is Int32.MaxValue - we would rather players not be able to move to tiles that have no specification
+        int travelCost = 2119321354;
+
+        // when determining cost traversals, certain perks would divide the cost of certain tiles by 100;
         foreach (Tilemap tilemap in hexMaps)
         {
             if (tilemap.GetTile(convertedTilePos))
@@ -311,21 +316,147 @@ public class HexSystem : MonoBehaviour
                 switch (tilemap.name)
                 {
                     case "Water":
-                        isWalkable = false; break;
+                        travelCost = (int)HexType.Water; break;
                     case "Mountains":
-                        isWalkable = false; break;
-                    case "Trees:":
-                        isWalkable = false; break;
-                    default:
-                        isWalkable = true; break;
+                        travelCost = (int)HexType.Mountains; break;
+                    case "Trees":
+                        travelCost = (int)HexType.Trees; break;
+                    case "RaisedLand":
+                        travelCost = (int)HexType.RaisedLand; break;
+                    case "Land":
+                        travelCost = (int)HexType.Land; break;
                 }
             }
+        }
+
+        // if someone's on the tile, we multiply the cost by 100
+        // this way, if someone's on a water tile, the cost for the tile is 10000
+        // with a swim perk, the water tile goes down to 100
+        // the character would need an extra perk to slip by
+
+        // this needs to be made so allies can be moved through
+        if (IsAnyoneOnTile(convertedTilePos))
+        {
+            travelCost *= 100;
+        }
+
+        return travelCost;
+    }
+
+    // Needs to be fixed to work based off travel costs
+    public bool IsWalkableTile(Vector3 tilePos, PlayerCharacter character)
+    {
+        Vector3Int convertedTilePos = new Vector3Int(Mathf.RoundToInt(tilePos.x), Mathf.RoundToInt(tilePos.y), Mathf.RoundToInt(tilePos.z));
+        bool isWalkable = true;
+
+        if (!BFSMovementRange(character.GetStartPos(), character.GetStamina()).ContainsKey(convertedTilePos))
+        {
+            isWalkable = false;
+        }
+
+        if (IsAnyoneOnTile(convertedTilePos))
+        {
+            isWalkable = false;
         }
 
         return isWalkable;
     }
 
-    public void DrawMovementOverlay() 
+    public bool IsAnyoneOnTile(Vector3 tilePos)
+    {
+        bool tileHasPerson = false;
+
+        foreach (PlayerCharacter character in mapCharacters)
+        {
+            if (fullMap.WorldToCell(character.GetPosition()) == tilePos && character != activeCharacter)
+            {
+                tileHasPerson = true;
+            }
+        }
+
+        return tileHasPerson;
+    }
+
+    // need to create a proper "game entity class" and change this so it takes any kind of object's position
+    public bool TileInRange(PlayerCharacter gameObject, Vector3 targetPos, int range)
+    {
+        return (GetTileDistance(gameObject.GetStartPos(), targetPos) <= range);
+    }
+
+    public bool OnMap(Vector3 position)
+    {
+        return ((position.x < (mapSizeX / 2)) && (position.x > (mapSizeX / -2)) && (position.y > (mapSizeY / -2)) && (position.y < (mapSizeY / 2)));
+    }
+
+    /* Movement Overlay creation
+     * 
+     * BFSMovementRange(Vector3, int)
+     * DrawMovementOverlay()
+     * AddWalkableTile(Vector3)
+     * ClearMovementOverlay()
+     * CreateMovementOverlay(int, Vector3)
+     * 
+     */
+
+    // to use this method, you enter in the entity's Position and their movement ability
+    public Dictionary<Vector3, Tuple<Vector3, int>> BFSMovementRange(Vector3 start, int range)
+    {
+        Queue frontier = new Queue();
+        frontier.Enqueue(start);
+
+        int costToNext;
+        Dictionary<Vector3, Tuple<Vector3, int>> costSoFar = new Dictionary<Vector3, Tuple<Vector3, int>>();
+        costSoFar.Add(start, Tuple.Create(start, 0));
+     
+        while (frontier.Count != 0) {
+            Vector3 current = (Vector3)frontier.Dequeue();
+            
+            foreach (var next in NeighbourTiles(current))
+            {
+                if ((GetTileType(current) == "Land" && GetTileType(next) == "RaisedLand"))
+                {
+                    costToNext = 2;
+                }
+                else
+                {
+                    costToNext = TravelCost(next);
+                }
+
+                if (!costSoFar.ContainsKey(next) && ((costToNext + costSoFar[current].Item2) <= range) && OnMap(next))
+                { 
+                    frontier.Enqueue(next);
+                    costSoFar.Add(next, Tuple.Create(current, costSoFar[current].Item2 + costToNext));
+                }
+            }
+
+        }
+
+        return costSoFar;
+    }
+
+    public void CreateMovementOverlay(int movementRange, Vector3 tilePos)
+    {
+        int minY = Mathf.RoundToInt(tilePos.y) - movementRange;
+        int maxY = Mathf.RoundToInt(tilePos.y) + movementRange;
+        int minX = Mathf.RoundToInt(tilePos.x) - movementRange;
+        int maxX = Mathf.RoundToInt(tilePos.x) + movementRange;
+
+        Vector3Int convertedTilePos = AxialHexToCube(tilePos);
+        Vector3 testTile;
+        Vector3Int axialTestTile;
+
+        Debug.Log("Start BFS");
+        foreach (Vector3 pos in BFSMovementRange(tilePos, movementRange).Keys)
+        {
+             AddWalkableTile(pos);
+        }
+
+
+        DrawMovementOverlay();
+        shouldRedraw = false;
+    }
+
+    public void DrawMovementOverlay()
     {
         tileOverlay.enabled = true;
         Tile[] walkableTileSprites = new Tile[walkableTileCoords.Count];
@@ -341,19 +472,133 @@ public class HexSystem : MonoBehaviour
     public void AddWalkableTile(Vector3 tilePos)
     {
         walkableTileCoords.Add(new Vector3Int(Mathf.RoundToInt(tilePos.x), Mathf.RoundToInt(tilePos.y), Mathf.RoundToInt(tilePos.z)));
-        
     }
 
-    public bool TileInRange(Vector3 tilePos)
-    {
-        Vector3Int convertedTilePos = new Vector3Int(Mathf.RoundToInt(tilePos.x), Mathf.RoundToInt(tilePos.y), Mathf.RoundToInt(tilePos.z));
-
-        return walkableTileCoords.Contains(convertedTilePos);
-    }
-
-    public void ClearWalkableTiles()
+    public void ClearMovementOverlay()
     {
         tileOverlay.ClearAllTiles();
         walkableTileCoords.Clear();
     }
+
+
+    /* Pathfinding 
+     * 
+     * The following code deals with pathfinding on the game map.
+     * 
+     * NeighbourTiles(Vector3) - returns all the neighbouring tiles of a Vector3 location
+     * AStarTraversal(Vector3, Vector3, int) finds a path from a start Vector3 to an end Vector.
+     * 
+     */
+
+    // Directions for the A* to branch out
+    public static readonly Vector3[] EVEN_DIRS = new[] {
+         new Vector3(1, 0, 0), // to right of tile
+         new Vector3(0, -1, 0), // to left of tile
+         new Vector3(-1, -1, 0), // below tile
+         new Vector3(-1, 0, 0), // above tile
+         new Vector3(-1, 1, 0), // diagonal top left
+         new Vector3(0, 1, 0) // diagonal bottom left
+     };
+
+    public static readonly Vector3[] ODD_DIRS = new[] {
+         new Vector3(1, 0, 0), // to right of tile
+         new Vector3(1, -1, 0), // to left of tile
+         new Vector3(0, -1, 0), // below tile
+         new Vector3(-1, 0, 0), // above tile
+         new Vector3(0, 1, 0), // diagonal bottom left
+         new Vector3(1, 1, 0) // diagonal top left
+     };
+
+    public IEnumerable<Vector3> NeighbourTiles(Vector3 start)
+    {
+        if (Mathf.Abs(start.y % 2) == 0)
+        {
+            foreach (var dir in EVEN_DIRS)
+            {
+                Vector3 next = new Vector3(start.x + dir.x, start.y + dir.y, start.z + dir.z);
+
+                yield return next;
+            }
+        } else if (Mathf.Abs(start.y % 2) == 1)
+        {
+            foreach (var dir in ODD_DIRS)
+            {
+                Vector3 next = new Vector3(start.x + dir.x, start.y + dir.y, start.z + dir.z);
+
+                yield return next;
+            }
+        }
+    }
+
+    public Dictionary<Vector3, Vector3> AStarTraversal(Vector3 start, Vector3 destination)
+    {
+        var frontier = new PriorityQueue<Vector3, int>();
+        frontier.Enqueue(start, 0);
+
+        Dictionary<Vector3, Vector3> cameFrom = new Dictionary<Vector3, Vector3>();
+        Dictionary<Vector3, int> costSoFar = new Dictionary<Vector3, int>();
+
+        cameFrom[start] = start;
+        costSoFar[start] = 0;
+
+        while (frontier.Count > 0)
+        {
+            var current = frontier.Dequeue();
+
+            if (current.Equals(destination))
+            {
+                break;
+            }
+
+            if (!OnMap(destination))
+            {
+                break;
+            }
+
+            foreach (var next in NeighbourTiles(current))
+            {
+                int newCost = costSoFar[current] + TravelCost(next);
+
+                if (!costSoFar.ContainsKey(next) || newCost < costSoFar[next])
+                {
+                    costSoFar[next] = newCost;
+                    int priority = newCost + GetTileDistance(next, destination);
+                    frontier.Enqueue(next, priority);
+                    cameFrom[next] = current;
+                }
+            }
+        }
+
+        return cameFrom;
+    }
+
+    public Stack<Tuple<Vector3, int>> BuildPath(Vector3 start, Vector3 end, int characterMovement)
+    {
+        Tuple<Vector3, int> node;
+        Dictionary<Vector3, Tuple<Vector3, int>> hexPath = BFSMovementRange(start, characterMovement);
+
+        Stack<Tuple<Vector3, int>> path = new Stack<Tuple<Vector3, int>>();
+
+        if (hexPath.ContainsKey(end))
+        {
+            path.Push(Tuple.Create(end, (hexPath[end].Item2 + TravelCost(end))));
+        }
+
+        while (hexPath[end].Item1 != start)
+        {
+            if (hexPath.TryGetValue(end, out node))
+            {
+                path.Push(node);
+                end = node.Item1;
+            }
+            else
+            {
+                Debug.Log("No Path");
+                break;
+            }
+        }
+               
+        return path;
+    }
 }
+

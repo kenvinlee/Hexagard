@@ -11,6 +11,7 @@ public class PlayerCharacter : MonoBehaviour
     private string tier3Class;
 
     private string[] perks;
+    private bool isAlly;
 
     // primary stats
     private int health;
@@ -37,6 +38,9 @@ public class PlayerCharacter : MonoBehaviour
     private string[] debuffs;
     private int range;
 
+    private int actionPoints;
+    private int movementPoints;
+
     // equipment
 
     // inventory
@@ -44,12 +48,14 @@ public class PlayerCharacter : MonoBehaviour
     // spells
 
     // render stuff
+    private Transform characterModel;
     private Vector3 offset = new Vector3(0, 0.2f, 0);
     private Vector3Int moveStartPos;
 
     // Start is called before the first frame update
     void Start()
     {
+
     }
 
     // Update is called once per frame
@@ -64,8 +70,12 @@ public class PlayerCharacter : MonoBehaviour
         transform.position = Vector3.MoveTowards(transform.position, targetPos, .03f);
     }
 
+    // This is comparing World locations, not Cell locations
+    // A character can be in the same Cell but in different world locations, so comparing world locations is more accurate
     public bool HasArrived(Vector3 currPos, Vector3 targetPos)
     {
+        targetPos += offset;
+        
         return (Vector3.Distance(currPos, targetPos) < 0.000001f);
     }
 
@@ -82,6 +92,31 @@ public class PlayerCharacter : MonoBehaviour
     public int GetStamina()
     {
         return stamina;
+    }
+
+    public void ResetMovement()
+    {
+        movementPoints = stamina;
+    }
+
+    public void UseMovement(int cost)
+    {
+        movementPoints -= cost;
+    }
+
+    public int GetMovement()
+    {
+        return movementPoints;
+    }
+
+    public void setAllegiance(bool isAlly)
+    {
+        this.isAlly = isAlly;
+    }
+
+    public bool isEnemy()
+    {
+        return !isAlly;
     }
 
     public void SetStartPos(Vector3Int startPos)
