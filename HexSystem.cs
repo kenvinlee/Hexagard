@@ -146,37 +146,6 @@ public class HexSystem : MonoBehaviour
 
         //BuildPath(pointA, pointB, knightCharacter.GetMovement());
 
-        /************************************************
-               
-        foreach (KeyValuePair<Vector3Int, Tile> kvp in hexArray)
-        {
-            // Debug.Log(string.Format("Key = {0}, Value = {1}", kvp.Key, kvp.Value));
-        }
-
-
-        foreach (TilemapRenderer renderer in hexMapRenderers)
-        {
-            Debug.Log(renderer.gameObject + ", " + renderer.sortingOrder);
-        }
-        
-        
-        // Create hex array based on above
-        for (int i = 0; i < transform.childCount; i++)
-        {
-            hexTypes[i] = new HexType();
-            hexTypes[i].HexTypeName = transform.GetChild(i).name;
-        }
-
-        for (int i = 0; i < mapSizeX; i++)
-        {
-            for (int j = 0; j < mapSizeY; j++)
-            {
-                // hexes[i, j] = new Hex(i, j);
-            }
-        }
-        ***************************************************/
-
-
     }
 
     // Update is called once per frame
