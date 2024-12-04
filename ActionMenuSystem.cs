@@ -15,4 +15,9 @@ public class ActionMenuSystem : MonoBehaviour
     {
         
     }
+
+    public void Attack()
+    {
+        Debug.Log("Attacking!");
+    }
 }
